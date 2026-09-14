@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ToonStory AI</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:900px;margin:auto;padding:20px;background:#f7f7fb;color:#171717}
+.card{background:#fff;border-radius:18px;padding:20px;margin:14px 0;box-shadow:0 4px 18px #0001}
+textarea,select,input,button{width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid #ccc;margin-top:7px;font:inherit}
+button{cursor:pointer;background:#111;color:#fff;border:0;font-weight:700}
+button:disabled{opacity:.5}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+img{width:100%;border-radius:12px}progress{width:100%}small{color:#666}
+</style>
+</head>
+<body>
+<h1>🎬 ToonStory AI</h1>
+<p>Turn a short children's story into cartoon scenes and a simple animated video.</p>
+<div class="card">
+<label>Pollinations publishable API key</label>
+<input id="key" type="password" placeholder="pk_...">
+<small>Use a publishable key only. Never put a secret sk_ key in this public page.</small>
+<label>Story</label>
+<textarea id="story" rows="6" placeholder="A little bear finds a rainbow in the forest and teaches his friends about colors."></textarea>
+<div class="grid">
+<div><label>Cartoon style</label><select id="style"><option>3D Kids Cartoon</option><option>2D Kids Cartoon</option><option>Anime Kids</option></select></div>
+<div><label>Scenes</label><select id="count"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option></select></div>
+</div>
+<button id="go">✨ Generate My Cartoon</button>
+<p id="status"></p><progress id="progress" value="0" max="1" hidden></progress>
+</div>
+<div class="card"><h2>Generated scenes</h2><div id="gallery" class="grid"></div>
+<video id="video" controls style="width:100%;display:none;border-radius:12px"></video>
+<a id="download" download="toonstory.webm" style="display:none">⬇️ Download animated video</a></div>
+<script>
+const $=id=>document.getElementById(id);
+function splitStory(s,n){s=s.trim();if(!s)return[];let a=s.split(/(?<=[.!?])\s+/).filter(Boolean);if(a.length>=n)return a.slice(0,n);let b=["opening establishing shot","the characters discover something interesting","the characters have a small adventure","a happy ending","final cheerful group shot"],base=s.replace(/[.!?]+$/,"");return b.slice(0,n).map(x=>x+": "+base+".")}
+function promptFor(scene,style){let m={"3D Kids Cartoon":"high quality 3D children's cartoon, cute rounded characters, colorful friendly environment, soft cinematic lighting","2D Kids Cartoon":"bright 2D children's cartoon illustration, clean outlines, colorful, friendly, playful","Anime Kids":"family friendly anime-inspired children's illustration, colorful, expressive, soft lighting"};return m[style]+". "+scene+". No text, no watermark, kid-safe, cheerful."}
+async function makeVideo(bitmaps,seconds=4){let c=document.createElement("canvas");c.width=1280;c.height=720;let x=c.getContext("2d"),s=c.captureStream(25),r=new MediaRecorder(s),chunks=[];r.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};r.start();for(const img of bitmaps){let st=performance.now();while(performance.now()-st<seconds*1000){let p=(performance.now()-st)/(seconds*1000),z=1+.08*p,sc=Math.max(c.width/img.width,c.height/img.height)*z,w=img.width*sc,h=img.height*sc;x.drawImage(img,(c.width-w)/2,(c.height-h)/2,w,h);await new Promise(q=>setTimeout(q,40))}}r.stop();await new Promise(q=>r.onstop=q);return new Blob(chunks,{type:"video/webm"})}
+$("go").onclick=async()=>{let key=$("key").value.trim(),story=$("story").value.trim(),n=Number($("count").value),style=$("style").value;if(!key)return $("status").textContent="Enter your Pollinations publishable key first.";if(!story)return $("status").textContent="Write a short story first."; $("go").disabled=true;$("gallery").innerHTML="";$("video").style.display="none";$("download").style.display="none";$("progress").hidden=false;$("progress").value=0;let scenes=splitStory(story,n),bm=[];try{for(let i=0;i<scenes.length;i++){ $("status").textContent=`Generating scene ${i+1} of ${scenes.length}...`;let p=encodeURIComponent(promptFor(scenes[i],style)),url=`https://gen.pollinations.ai/image/${p}?model=flux&width=512&height=512&nologo=true`,res=await fetch(url,{headers:{Authorization:"Bearer "+key}});if(!res.ok)throw Error("Image API returned "+res.status+". Check your key/quota.");let blob=await res.blob(),u=URL.createObjectURL(blob),im=document.createElement("img");im.src=u;$("gallery").appendChild(im);bm.push(await createImageBitmap(blob));$("progress").value=(i+1)/scenes.length} $("status").textContent="Building your animated video in your browser...";let vb=await makeVideo(bm),vu=URL.createObjectURL(vb);$("video").src=vu;$("video").style.display="block";$("download").href=vu;$("download").style.display="inline-block";$("status").textContent="Done! 🎉"}catch(e){$("status").textContent=e.message}finally{$("go").disabled=false}};
+</script>
+</body>
+</html>
